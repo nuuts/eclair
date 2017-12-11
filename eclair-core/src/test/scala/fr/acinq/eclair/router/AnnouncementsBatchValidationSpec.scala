@@ -59,9 +59,7 @@ object AnnouncementsBatchValidationSpec {
   def generateBlocks(numBlocks: Int)(implicit extendedBitcoinClient: ExtendedBitcoinClient, ec: ExecutionContext) =
     Await.result(extendedBitcoinClient.rpcClient.invoke("generate", numBlocks), 10 seconds)
 
-  def simulateChannel()(implicit extendedBitcoinClient: ExtendedBitcoinClient, ec: ExecutionContext, system: ActorSystem): SimulatedChannel = {
-    val node1Key = randomKey
-    val node2Key = randomKey
+  def simulateChannel(node1Key: PrivateKey = randomKey, node2Key: PrivateKey = randomKey)(implicit extendedBitcoinClient: ExtendedBitcoinClient, ec: ExecutionContext, system: ActorSystem): SimulatedChannel = {
     val node1BitcoinKey = randomKey
     val node2BitcoinKey = randomKey
     val amount = Satoshi(1000000)

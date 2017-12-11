@@ -324,6 +324,34 @@ class IntegrationSpec extends TestKit(ActorSystem("test")) with FunSuiteLike wit
     sender.expectMsgType[PaymentSucceeded]
   }
 
+  test("send an HTLC with a non-existing channel") {
+    val sender = TestProbe()
+    // first let's simulate a channel between C and some random node
+    implicit val extendedClient = new ExtendedBitcoinClient(bitcoinrpcclient)
+    val simulatedChannel = AnnouncementsBatchValidationSpec.simulateChannel(node1Key = nodes("C").nodeParams.privateKey)
+    val fakeNodeId = simulatedChannel.node2Key.publicKey
+    // confirm the funding tx
+    sender.send(bitcoincli, BitcoinReq("generate", 1))
+    sender.expectMsgType[JValue](10 seconds)
+    // then make the channel announcement
+    val channelAnnouncement = AnnouncementsBatchValidationSpec.makeChannelAnnouncement(simulatedChannel)
+    // and the channel update C->fakeNode
+    val channelUpdate = Announcements.makeChannelUpdate(nodes("C").nodeParams.chainHash, nodes("C").nodeParams.privateKey, fakeNodeId, channelAnnouncement.shortChannelId, nodes("C").nodeParams.expiryDeltaBlocks, nodes("C").nodeParams.htlcMinimumMsat, nodes("C").nodeParams.feeBaseMsat, nodes("C").nodeParams.feeProportionalMillionth, enable = true)
+    // let's send these announcements to A, so that it knows how to build a route to this fake node
+    nodes("A").router ! channelAnnouncement
+    nodes("A").router ! channelUpdate
+    nodes("C").relayer ! channelUpdate
+    // wait for A to have validated this channel
+    awaitCond({
+      sender.send(nodes("A").router, 'updates)
+      sender.expectMsgType[Iterable[ChannelUpdate]].toSeq.contains(channelUpdate)
+    }, max = 20 seconds, interval = 1 second)
+    // then send a payment to this fake node (we can use a dummy payment hash)
+    val sendReq = SendPayment(300000000L, "42" * 32, fakeNodeId)
+    sender.send(nodes("A").paymentInitiator, sendReq)
+    sender.expectMsgType[PaymentFailed]
+  }
+
   /**
     * We currently use p2pkh script Helpers.getFinalScriptPubKey
     *
@@ -629,7 +657,7 @@ class IntegrationSpec extends TestKit(ActorSystem("test")) with FunSuiteLike wit
         sender.send(bitcoincli, BitcoinReq("generate", 1))
         sender.expectMsgType[JValue](10 seconds)
       }
-      AnnouncementsBatchValidationSpec.simulateChannel
+      AnnouncementsBatchValidationSpec.simulateChannel()
     }
     sender.send(bitcoincli, BitcoinReq("generate", 1))
     sender.expectMsgType[JValue](10 seconds)

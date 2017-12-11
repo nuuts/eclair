@@ -635,7 +635,7 @@ class BasicIntegrationSpvSpec extends TestKit(ActorSystem("test")) with FunSuite
         sender.send(bitcoincli, BitcoinReq("generate", 1))
         sender.expectMsgType[JValue](10 seconds)
       }
-      AnnouncementsBatchValidationSpec.simulateChannel
+      AnnouncementsBatchValidationSpec.simulateChannel()
     }
     sender.send(bitcoincli, BitcoinReq("generate", 1))
     sender.expectMsgType[JValue](10 seconds)
